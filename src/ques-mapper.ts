@@ -13,6 +13,7 @@ export const FhirJsonForm = (
   fhirQuestionnaire: R4.IQuestionnaire
 ): FhirForm => {
   let ALL_PROPERTIES: any = {};
+  let dependencies: any = {};
   let requiredProperties: string[] = [];
   let UISchema: any = {};
 
@@ -22,8 +23,12 @@ export const FhirJsonForm = (
     status: R4.QuestionnaireResponseStatusKind._inProgress,
   };
 
-  fhirQuestionnaire.item?.forEach(function(item, _) {
+  fhirQuestionnaire.item?.forEach(function(item, _, items) {
     // _ is the ignored index
+
+    // Linked items in "enableWhen" need to be rendered dynamically thus can't be visible from the beginning...
+    // ...hence we omit adding those items to root properties object
+    if (item?.enableWhen) return;
 
     // If the item is a group
     if (item.type === R4.Questionnaire_ItemTypeKind._group) {
@@ -88,6 +93,7 @@ export const FhirJsonForm = (
         typeof item.linkId === 'undefined' ? uuid() : item.linkId.toString();
 
       ALL_PROPERTIES[myProperty] = GetItemProperties(item);
+      dependencies = ProcessQuestionnaireDependencies(items)
       UISchema[myProperty] = {};
 
       const uiWidget = GetWidget(item)
@@ -111,6 +117,7 @@ export const FhirJsonForm = (
     title: fhirQuestionnaire.id?.toString(),
     properties: ALL_PROPERTIES,
     required: requiredProperties,
+    dependencies
   };
   let fhirForm: FhirForm = {
     model: fhirQuestionnaireResponse,
@@ -129,7 +136,6 @@ export const FhirJsonForm = (
 const GetItemProperties = (item: R4.IQuestionnaire_Item) => {
   const properties = ProcessQuestionnaireItem(item);
   const itemOptions = GetOptions(item);
-
   if (itemOptions !== '') {
     return { ...properties, ...itemOptions };
   }
@@ -146,10 +152,64 @@ const GetItemProperties = (item: R4.IQuestionnaire_Item) => {
 const ProcessQuestionnaireItem = (item: R4.IQuestionnaire_Item) => {
   let ff_field: FhirJsonField = {
     type: GetControlType(item),
-    title: item.text?.toString(),
+    title: item.text?.toString()
   };
+
   return ff_field;
 };
+
+const ProcessQuestionnaireDependencies = (items: R4.IQuestionnaire_Item[]) => {
+  const itemsWithEnableWhen = items.filter(item => item.enableWhen);
+
+  const dependencies = itemsWithEnableWhen.reduce((previousItem, item) => {
+    let tempDependencies = {}
+
+    const conditions: any = item?.enableWhen?.reduce((existingConditions: any, currentCondition: R4.IQuestionnaire_EnableWhen) => {
+      const questionMatch = items.find(item => item.linkId === currentCondition.question)
+
+      if (!questionMatch) return existingConditions;
+
+      const oneOf = [
+        {
+          properties: {
+            [questionMatch.linkId as string]: {
+              enum: [false],
+            }
+          }
+        },
+        {
+          properties: {
+            [questionMatch.linkId as string]: {
+              enum: [true],
+            },
+            [item.linkId as string]: {
+              type: GetControlType(item),
+              title: item.text
+            }
+          }
+        }
+      ]
+
+      tempDependencies = {
+        ...tempDependencies,
+        [questionMatch.linkId as string]: {
+          oneOf
+        }
+      }
+
+      return oneOf
+    }, [])
+
+    if(!conditions || conditions.length === 0) return previousItem;
+
+    return {
+      ...previousItem,
+      ...tempDependencies
+    }
+  }, {})
+
+  return dependencies;
+}
 
 const GetOptions = (item: R4.IQuestionnaire_Item) => {
   let enumOptions: (string|number)[] = [];
