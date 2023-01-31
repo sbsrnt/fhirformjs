@@ -1,5 +1,6 @@
 import {R4} from "@ahryman40k/ts-fhir-types";
-import {oneOfBooleanAnswers} from "../dependencies";
+// import {oneOfBooleanAnswers} from "../dependencies";
+import {oneOfIntegerAnswers} from "../dependencies";
 
 const processQuestionnaireDependencies = (items: R4.IQuestionnaire_Item[]) => {
   const itemsWithEnableWhen = items.filter(item => item.enableWhen);
@@ -12,7 +13,7 @@ const processQuestionnaireDependencies = (items: R4.IQuestionnaire_Item[]) => {
 
       if (!questionnaireItem) return existingConditions;
 
-      const oneOf = oneOfBooleanAnswers({questionnaireItem, itemToBeDynamicallyRendered})
+      const oneOf = oneOfIntegerAnswers({questionnaireItem, itemToBeDynamicallyRendered})
 
         tempDependencies = {
           ...tempDependencies,

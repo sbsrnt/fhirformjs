@@ -1,6 +1,12 @@
 import {processQuestionnaireItem} from "../utils";
+import {R4} from "@ahryman40k/ts-fhir-types";
 
-const oneOfBooleanAnswers = ({questionnaireItem, itemToBeDynamicallyRendered}) => ([
+type OneOfBooleanAnswersProps = {
+  questionnaireItem: R4.IQuestionnaire_Item
+  itemToBeDynamicallyRendered: R4.IQuestionnaire_Item
+}
+
+const oneOfBooleanAnswers = ({questionnaireItem, itemToBeDynamicallyRendered}: OneOfBooleanAnswersProps) => ([
   {
     properties: {
       [questionnaireItem.linkId as string]: {
