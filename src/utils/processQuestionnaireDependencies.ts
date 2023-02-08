@@ -1,35 +1,52 @@
 import {R4} from "@ahryman40k/ts-fhir-types";
-// import {oneOfBooleanAnswers} from "../dependencies";
-import {oneOfIntegerAnswers} from "../dependencies";
+import {processQuestionnaireItem, range} from "../utils";
 
 const processQuestionnaireDependencies = (items: R4.IQuestionnaire_Item[]) => {
   const itemsWithEnableWhen = items.filter(item => item.enableWhen);
-
   const dependencies = itemsWithEnableWhen.reduce((previousItem, itemToBeDynamicallyRendered) => {
-    let tempDependencies = {}
+    let tempThen = {}
+    let tempIf = {}
 
-    const conditions: any = itemToBeDynamicallyRendered?.enableWhen?.reduce((existingConditions: any, currentCondition: R4.IQuestionnaire_EnableWhen) => {
+    const dynamicIfThenElse: any = itemToBeDynamicallyRendered?.enableWhen?.reduce((existingConditions: any, currentCondition: R4.IQuestionnaire_EnableWhen) => {
+
       const questionnaireItem = items.find(item => item.linkId === currentCondition.question)
 
       if (!questionnaireItem) return existingConditions;
 
-      const oneOf = oneOfIntegerAnswers({questionnaireItem, itemToBeDynamicallyRendered})
+      tempIf = {
+        ...tempIf,
+        [questionnaireItem.linkId as string]: {
+          ...(currentCondition.hasOwnProperty('answerBoolean') && {enum: [currentCondition.answerBoolean]}),
+          ...(currentCondition.hasOwnProperty('answerInteger') && {...range({
+              operator: currentCondition.operator,
+              value: currentCondition.answerInteger,
+              answerType: 'answerInteger'
+            })})
+        }
+      }
 
-        tempDependencies = {
-          ...tempDependencies,
-          [questionnaireItem.linkId as string]: {
-            oneOf
+      tempThen = {
+        ...tempThen,
+        [itemToBeDynamicallyRendered.linkId as string]: processQuestionnaireItem(itemToBeDynamicallyRendered)
+      }
+
+      return {
+        [questionnaireItem.linkId as string]: {
+          if: {
+            properties: tempIf
+          },
+          then: {
+            properties: tempThen
           }
         }
-
-      return oneOf
+      }
     }, [])
 
-    if(!conditions || conditions.length === 0) return previousItem;
+    if(!dynamicIfThenElse || dynamicIfThenElse.length === 0) return previousItem;
 
     return {
       ...previousItem,
-      ...tempDependencies
+      ...dynamicIfThenElse
     }
   }, {})
 
